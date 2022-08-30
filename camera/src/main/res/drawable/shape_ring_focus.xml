@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+       android:innerRadius="@dimen/camera_focus_view_ring_radius"
+       android:shape="ring"
+       android:thickness="@dimen/camera_focus_view_ring_width"
+       android:useLevel="false">
+    <!--<stroke-->
+            <!--android:width="0.5dp"-->
+            <!--android:color="#58C9E7" />-->
+    <solid android:color="#FFFFFF"/>
+    <size android:width="@dimen/camera_focus_view_size" android:height="@dimen/camera_focus_view_size"/>
+
+</shape>

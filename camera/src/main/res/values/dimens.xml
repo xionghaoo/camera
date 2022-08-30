@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="divider_width">0.5dp</dimen>
+	<dimen name="indicator_rect_text_size">14sp</dimen>
+	<dimen name="image_rect_text_size">28sp</dimen>
+
+	<dimen name="camera_focus_view_size">50dp</dimen>
+	<dimen name="camera_focus_view_ring_radius">24dp</dimen>
+	<dimen name="camera_focus_view_ring_width">0.5dp</dimen>
+	<dimen name="size_button">120dp</dimen>
+	<dimen name="margin_button">5dp</dimen>
+
+</resources>
