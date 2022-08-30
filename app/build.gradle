@@ -35,7 +35,8 @@ android {
 }
 
 dependencies {
-    implementation 'com.github.xionghaoo:camera:0.0.1'
+//    implementation 'com.github.xionghaoo:camera:0.0.1'
+    implementation project(':camera')
 
     implementation 'androidx.core:core-ktx:1.7.0'
     implementation 'androidx.appcompat:appcompat:1.5.0'

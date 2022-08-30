@@ -11,9 +11,11 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.util.Log
+import android.util.Size
 import android.view.*
 import android.webkit.MimeTypeMap
 import android.widget.Toast
+import androidx.annotation.WorkerThread
 import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.core.*
 import androidx.camera.core.Camera
@@ -56,7 +58,14 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
 
     private lateinit var surfaceTexture: SurfaceTexture
 
+    private lateinit var bitmapBuffer: Bitmap
+    private var imageRotationDegrees: Int = 0
+    var isStopAnalysis = false
+
+    protected abstract val isAnalysis: Boolean
+
     override fun onDestroy() {
+        isStopAnalysis = true
         cameraExecutor.apply {
             shutdown()
             awaitTermination(1000, TimeUnit.MILLISECONDS)
@@ -190,23 +199,40 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
             .setJpegQuality(100)
             .build()
 
-        // ImageAnalysis 用例
-        imageAnalyzer = ImageAnalysis.Builder()
-            // We request aspect ratio but no resolution
-            .setTargetAspectRatio(screenAspectRatio)
-            // Set initial target rotation, we will have to call this again if rotation changes
-            // during the lifecycle of this use case
-            .setTargetRotation(rotation)
-            .build()
-            // The analyzer can then be assigned to the instance
-            .also {
-//                it.setAnalyzer(cameraExecutor, LuminosityAnalyzer { luma ->
-//                    // Values returned from our analyzer are passed to the attached listener
-//                    // We log image analysis results here - you should do something useful
-//                    // instead!
-//                    Timber.d("Average luminosity: $luma")
-//                })
-            }
+        if (isAnalysis) {
+            // ImageAnalysis 用例
+            imageAnalyzer = ImageAnalysis.Builder()
+                // We request aspect ratio but no resolution
+//            .setTargetAspectRatio(screenAspectRatio)
+                .setTargetRotation(rotation)
+                // 大分辨率
+//            .setTargetResolution(Size(960, 1280))
+                .setTargetResolution(Size(640, 480))
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+                .build()
+                // The analyzer can then be assigned to the instance
+                .also {
+                    it.setAnalyzer(cameraExecutor, ImageAnalysis.Analyzer { image ->
+                        if (!::bitmapBuffer.isInitialized) {
+                            imageRotationDegrees = image.imageInfo.rotationDegrees
+                            bitmapBuffer = Bitmap.createBitmap(image.width, image.height, Bitmap.Config.ARGB_8888)
+                        }
+//                    Timber.d("ImageAnalysis: image width: ${image.width}, height: ${image.height}, rotation: ${image.imageInfo.rotationDegrees}")
+                        image.use { bitmapBuffer.copyPixelsFromBuffer(image.planes[0].buffer) }
+                        // 拿到的图片是逆时针转了90度的图，这里修正它
+                        val matrix = Matrix()
+                        matrix.postRotate(0f)
+                        val bitmap = Bitmap.createBitmap(bitmapBuffer, 0, 0, bitmapBuffer.width, bitmapBuffer.height, matrix, true)
+                        // 监听线程关闭的消息
+                        if (isStopAnalysis) {
+                            return@Analyzer
+                        }
+
+                        onAnalysisImage(bitmap)
+                    })
+                }
+        }
 
         // Must unbind the use-cases before rebinding them
         cameraProvider.unbindAll()
@@ -214,8 +240,13 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
         try {
             // A variable number of use-cases can be passed here -
             // camera provides access to CameraControl & CameraInfo
-            camera = cameraProvider.bindToLifecycle(
-                this, cameraSelector, preview, imageCapture, imageAnalyzer)
+            camera = if (isAnalysis) {
+                cameraProvider.bindToLifecycle(
+                    this, cameraSelector, preview, imageCapture, imageAnalyzer)
+            } else {
+                cameraProvider.bindToLifecycle(
+                    this, cameraSelector, preview, imageCapture)
+            }
 
             // Attach the viewfinder's surface provider to preview use case
 //            preview?.setSurfaceProvider(binding.viewFinder.surfaceProvider)
@@ -233,6 +264,8 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
             Timber.e("Use case binding failed: $exc")
         }
     }
+
+    abstract fun onAnalysisImage(bitmap: Bitmap)
 
     private fun aspectRatio(width: Int, height: Int): Int {
         val previewRatio = max(width, height).toDouble() / min(width, height)
