@@ -207,7 +207,7 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
                 .setTargetRotation(rotation)
                 // 大分辨率
 //            .setTargetResolution(Size(960, 1280))
-                .setTargetResolution(Size(640, 480))
+                .setTargetResolution(Size(480, 640))
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                 .build()
@@ -218,18 +218,18 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
                             imageRotationDegrees = image.imageInfo.rotationDegrees
                             bitmapBuffer = Bitmap.createBitmap(image.width, image.height, Bitmap.Config.ARGB_8888)
                         }
-//                    Timber.d("ImageAnalysis: image width: ${image.width}, height: ${image.height}, rotation: ${image.imageInfo.rotationDegrees}")
+//                        Timber.d("ImageAnalysis: image width: ${image.width}, height: ${image.height}, rotation: ${image.imageInfo.rotationDegrees}")
                         image.use { bitmapBuffer.copyPixelsFromBuffer(image.planes[0].buffer) }
                         // 拿到的图片是逆时针转了90度的图，这里修正它
                         val matrix = Matrix()
-                        matrix.postRotate(0f)
+                        matrix.postRotate(IMAGE_ROTATE)
                         val bitmap = Bitmap.createBitmap(bitmapBuffer, 0, 0, bitmapBuffer.width, bitmapBuffer.height, matrix, true)
                         // 监听线程关闭的消息
                         if (isStopAnalysis) {
                             return@Analyzer
                         }
-
                         onAnalysisImage(bitmap)
+
                     })
                 }
         }
@@ -265,6 +265,7 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
         }
     }
 
+    @WorkerThread
     abstract fun onAnalysisImage(bitmap: Bitmap)
 
     private fun aspectRatio(width: Int, height: Int): Int {
@@ -451,7 +452,7 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
         private const val RATIO_4_3_VALUE = 4.0 / 3.0
         private const val RATIO_16_9_VALUE = 16.0 / 9.0
 
-        private const val FOCUS_AREA_RADIUS = 400
+        private const val IMAGE_ROTATE = 90f
 
         /** Helper function used to create a timestamped file */
         private fun createFile(baseFolder: File, format: String, extension: String) =

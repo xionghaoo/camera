@@ -77,7 +77,7 @@ abstract class BaseCameraActivity<V: ViewBinding> : AppCompatActivity() {
 
     abstract fun getBindingView(): V
 
-    abstract fun getPreviewRect(): Rect?
+    abstract fun getPreviewSize(): Size?
 
     abstract fun getCameraFragmentLayout(): ViewGroup?
 
@@ -90,6 +90,11 @@ abstract class BaseCameraActivity<V: ViewBinding> : AppCompatActivity() {
      * supportImage：相机支持的照片尺寸
      */
     abstract fun onCameraAreaCreated(cameraId: String, previewArea: Size, screen: Size, supportImage: Size)
+
+    private fun getPreviewRect(): Rect? {
+        val size = getPreviewSize()
+        return if (size == null) null else Rect(0, 0, size.width, size.height)
+    }
 
     private fun initialCameraArea() {
         val cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
