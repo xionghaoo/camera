@@ -14,7 +14,11 @@ import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.viewbinding.ViewBinding
 import timber.log.Timber
+import xh.zero.camera.utils.StorageUtil
 import xh.zero.camera.widgets.BaseSurfaceView
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.*
 import kotlin.math.abs
 import kotlin.math.min
 
@@ -73,5 +77,24 @@ abstract class BaseCameraFragment<V: ViewBinding> : Fragment() {
                 surfaceTexture.setDefaultBufferSize(maxBufferSize.width, maxBufferSize.height)
                 Timber.d("纹理缓冲区尺寸：${maxBufferSize}")
             }
+    }
+
+    companion object {
+        private const val FILENAME = "yyyyMMdd_HHmmssSSS"
+
+        /**
+         * Create a [File] named a using formatted timestamp with the current date and time.
+         *
+         * @return [File] created.
+         */
+        fun createFile(context: Context, extension: String): File {
+            val sdf = SimpleDateFormat(FILENAME, Locale.US)
+//            val rootDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+//            val pictureDir = File(rootDir, "roboland")
+//            if (!pictureDir.exists()) pictureDir.mkdir()
+//            return File(Environment.getExternalStorageDirectory(), "IMG_${sdf.format(Date())}.$extension")
+            val dir = StorageUtil.getDownloadDirectory(context.applicationContext, "xh_camera")
+            return File(dir, "IMG_${sdf.format(Date())}.$extension")
+        }
     }
 }

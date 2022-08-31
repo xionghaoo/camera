@@ -8,26 +8,32 @@ import android.util.Size
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.Toast
 import timber.log.Timber
 import xh.zero.camera.BaseCameraActivity
 import xh.zero.xh_camera.databinding.ActivityMainBinding
 
 class MainActivity : BaseCameraActivity<ActivityMainBinding>(), CameraXPreviewFragment.OnFragmentActionListener {
 
+    private lateinit var fragment: CameraXPreviewFragment
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        binding.btnCapture.setOnClickListener {
+            fragment.takePhoto { path ->
+                Toast.makeText(this, "照片已保存: $path", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     override fun getBindingView(): ActivityMainBinding {
         return ActivityMainBinding.inflate(layoutInflater)
     }
 
-    override fun getPreviewRect(): Rect? {
-        return Rect(0, 0, 400, 400)
-    }
+    override fun getPreviewSize(): Size? = Size(400, 400)
 
     override fun getCameraFragmentLayout(): ViewGroup? {
-        return null
+        return binding.fragmentContainer
     }
 
     override fun selectCameraId(cameraIds: Array<String>): String {
@@ -44,8 +50,9 @@ class MainActivity : BaseCameraActivity<ActivityMainBinding>(), CameraXPreviewFr
         lp.gravity = Gravity.END or Gravity.TOP
 
         Timber.d("preview: $previewArea, screen: $screen, supportImage: $supportImage")
+        fragment = CameraXPreviewFragment.newInstance(cameraId)
         supportFragmentManager.beginTransaction()
-            .replace(R.id.fragment_container, CameraXPreviewFragment.newInstance(cameraId))
+            .replace(R.id.fragment_container, fragment)
             .commit()
     }
 

@@ -25,6 +25,7 @@ import androidx.core.net.toFile
 import androidx.viewbinding.ViewBinding
 import androidx.window.WindowManager
 import timber.log.Timber
+import xh.zero.camera.utils.StorageUtil
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -54,7 +55,7 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
     private lateinit var surfaceExecutor: ExecutorService
 
     // 照片输出路径
-    private lateinit var outputDirectory: File
+//    private lateinit var outputDirectory: File
 
     private lateinit var surfaceTexture: SurfaceTexture
 
@@ -83,7 +84,7 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
         cameraExecutor = Executors.newSingleThreadExecutor()
         surfaceExecutor = Executors.newSingleThreadExecutor()
         // Determine the output directory
-        outputDirectory = getOutputDirectory(requireContext())
+//        outputDirectory = getOutputDirectory(requireContext())
 
         windowManager = WindowManager(view.context)
 
@@ -376,7 +377,7 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
         imageCapture?.let { imageCapture ->
 
             // Create output file to hold the image
-            val photoFile = createFile(outputDirectory, FILENAME, PHOTO_EXTENSION)
+            val photoFile = createFile(requireContext(), PHOTO_EXTENSION)
 
             // Setup image capture metadata
             val metadata = ImageCapture.Metadata().apply {
@@ -447,35 +448,27 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
     }
 
     companion object {
-        private const val FILENAME = "yyyy-MM-dd-HH-mm-ss-SSS"
-        private const val PHOTO_EXTENSION = ".jpg"
+        private const val PHOTO_EXTENSION = "jpg"
         private const val RATIO_4_3_VALUE = 4.0 / 3.0
         private const val RATIO_16_9_VALUE = 16.0 / 9.0
 
         private const val IMAGE_ROTATE = 90f
 
         /** Helper function used to create a timestamped file */
-        private fun createFile(baseFolder: File, format: String, extension: String) =
-            File(baseFolder, SimpleDateFormat(format, Locale.US)
-                .format(System.currentTimeMillis()) + extension)
+//        private fun createFile(baseFolder: File, format: String, extension: String) =
+//            File(
+//                baseFolder,
+//                SimpleDateFormat(format, Locale.US).format(System.currentTimeMillis()) + extension
+//            )
 
         /** Use external media if it is available, our app's file directory otherwise */
-        fun getOutputDirectory(context: Context): File {
-            val appContext = context.applicationContext
-            return if (hasExternalStoragePermission(appContext)) {
-                val downloadDir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "xh_camera")
-                if (!downloadDir.exists()) {
-                    downloadDir.mkdir()
-                }
-                downloadDir
-            } else {
-                appContext.filesDir
-            }
-        }
+//        fun getOutputDirectory(context: Context): File {
+//            return StorageUtil.getDownloadDirectory(context.applicationContext, "xh_camera")
+//        }
 
-        private fun hasExternalStoragePermission(context: Context): Boolean {
-            val perm = context.checkCallingOrSelfPermission("android.permission.WRITE_EXTERNAL_STORAGE")
-            return perm == PackageManager.PERMISSION_GRANTED
-        }
+//        private fun hasExternalStoragePermission(context: Context): Boolean {
+//            val perm = context.checkCallingOrSelfPermission("android.permission.WRITE_EXTERNAL_STORAGE")
+//            return perm == PackageManager.PERMISSION_GRANTED
+//        }
     }
 }
