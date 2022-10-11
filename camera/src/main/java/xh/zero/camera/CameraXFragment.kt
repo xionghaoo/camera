@@ -98,9 +98,9 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
 
         // 手动对焦
         getSurfaceView().setOnGestureDetect(object : GestureDetector.SimpleOnGestureListener() {
-            override fun onSingleTapUp(e: MotionEvent?): Boolean {
-                val x = e?.x ?: 0f
-                val y = e?.y ?: 0f
+            override fun onSingleTapUp(e: MotionEvent): Boolean {
+                val x = e.x ?: 0f
+                val y = e.y ?: 0f
 
                 val factory: MeteringPointFactory = SurfaceOrientedMeteringPointFactory(
                     getSurfaceView().width.toFloat(), getSurfaceView().height.toFloat()

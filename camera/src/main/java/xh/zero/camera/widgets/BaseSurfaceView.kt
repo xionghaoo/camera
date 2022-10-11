@@ -19,7 +19,7 @@ abstract class BaseSurfaceView: GLSurfaceView {
 
     abstract fun setOnSurfaceCreated(callback: OnTextureCreated)
 
-    override fun onTouchEvent(event: MotionEvent?): Boolean {
+    override fun onTouchEvent(event: MotionEvent): Boolean {
         gestureDetector?.onTouchEvent(event)
         return true
     }
