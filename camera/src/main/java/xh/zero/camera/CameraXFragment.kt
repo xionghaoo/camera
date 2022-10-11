@@ -63,7 +63,8 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
     private var imageRotationDegrees: Int = 0
     var isStopAnalysis = false
 
-    protected abstract val isAnalysis: Boolean
+    protected abstract var captureSize: Size?
+    protected abstract val surfaceRatio: Size
 
     override fun onDestroy() {
         isStopAnalysis = true
@@ -90,7 +91,7 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
 
         getSurfaceView().setOnSurfaceCreated { sfTexture ->
             surfaceTexture = sfTexture
-            setSurfaceBufferSize(surfaceTexture)
+            setSurfaceBufferSize(surfaceRatio, surfaceTexture)
             displayId = getSurfaceView().display.displayId
             setupCamera()
         }
@@ -200,7 +201,7 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
             .setJpegQuality(100)
             .build()
 
-        if (isAnalysis) {
+        if (captureSize != null) {
             // ImageAnalysis 用例
             imageAnalyzer = ImageAnalysis.Builder()
                 // We request aspect ratio but no resolution
@@ -208,7 +209,7 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
                 .setTargetRotation(rotation)
                 // 大分辨率
 //            .setTargetResolution(Size(960, 1280))
-                .setTargetResolution(Size(480, 640))
+                .setTargetResolution(captureSize!!)
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                 .build()
@@ -241,7 +242,7 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
         try {
             // A variable number of use-cases can be passed here -
             // camera provides access to CameraControl & CameraInfo
-            camera = if (isAnalysis) {
+            camera = if (captureSize != null) {
                 cameraProvider.bindToLifecycle(
                     this, cameraSelector, preview, imageCapture, imageAnalyzer)
             } else {

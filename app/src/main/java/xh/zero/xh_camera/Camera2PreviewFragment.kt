@@ -1,6 +1,7 @@
 package xh.zero.xh_camera
 
 import android.os.Bundle
+import android.util.Size
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import xh.zero.camera.Camera2Fragment
@@ -11,6 +12,8 @@ class Camera2PreviewFragment: Camera2Fragment<FragmentCamera2PreviewBinding>() {
     override val cameraId: String by lazy {
         arguments?.getString("id") ?: "0"
     }
+
+    override val surfaceRatio: Size = Size(4, 3)
 
     override fun getBindingView(
         inflater: LayoutInflater,

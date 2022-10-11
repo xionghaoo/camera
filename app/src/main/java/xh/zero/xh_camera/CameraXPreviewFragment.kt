@@ -3,6 +3,7 @@ package xh.zero.xh_camera
 import android.content.Context
 import android.graphics.Bitmap
 import android.os.Bundle
+import android.util.Size
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import timber.log.Timber
@@ -12,8 +13,8 @@ import xh.zero.xh_camera.databinding.FragmentCameraXPreviewBinding
 
 class CameraXPreviewFragment : CameraXFragment<FragmentCameraXPreviewBinding>() {
 
-    override val isAnalysis: Boolean = true
-
+    override var captureSize: Size? = Size(DEFAULT_ANALYZE_IMAGE_WIDTH, DEFAULT_ANALYZE_IMAGE_HEIGHT)
+    override val surfaceRatio: Size = Size(4, 3)
     private var listener: OnFragmentActionListener? = null
 
     override val cameraId: String by lazy { arguments?.getString("cameraId") ?: "0" }

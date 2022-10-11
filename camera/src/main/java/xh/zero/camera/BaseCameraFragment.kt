@@ -8,6 +8,7 @@ import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.opengl.GLES20
 import android.os.Bundle
+import android.util.Size
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -50,7 +51,7 @@ abstract class BaseCameraFragment<V: ViewBinding> : Fragment() {
      * 如果相机输出的缓冲区和我们设置的Surface buffer size尺寸不一致，那么输出到Surface时的图像就会变形
      * 如果我们Surface buffer size的尺寸和SurfaceView的尺寸不一致，那么输出的图像也会变形
      */
-    protected fun setSurfaceBufferSize(surfaceTexture: SurfaceTexture) {
+    protected fun setSurfaceBufferSize(aspectRatio: Size, surfaceTexture: SurfaceTexture) {
         val characteristic = cameraManager.getCameraCharacteristics(cameraId.toString())
         val configurationMap = characteristic.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
         configurationMap?.getOutputSizes(ImageFormat.JPEG)
@@ -70,7 +71,7 @@ abstract class BaseCameraFragment<V: ViewBinding> : Fragment() {
             }
             ?.filter { size ->
                 // 寻找4:3的预览尺寸比例
-                abs(size.width / 4f - size.height / 3f) < 0.01f
+                abs(size.width.toFloat() / aspectRatio.width - size.height.toFloat() / aspectRatio.height) < 0.01f
             }
             ?.maxByOrNull { size -> size.height * size.width }
             ?.also { maxBufferSize ->
@@ -81,6 +82,9 @@ abstract class BaseCameraFragment<V: ViewBinding> : Fragment() {
 
     companion object {
         private const val FILENAME = "yyyyMMdd_HHmmssSSS"
+
+        const val DEFAULT_ANALYZE_IMAGE_WIDTH = 480
+        const val DEFAULT_ANALYZE_IMAGE_HEIGHT = 640
 
         /**
          * Create a [File] named a using formatted timestamp with the current date and time.

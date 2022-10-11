@@ -63,6 +63,7 @@ abstract class Camera2Fragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
     private var cropRect: Rect? = null
 
     private var captureSize: Size? = null
+    protected abstract val surfaceRatio: Size
 
     fun setCaptureSize(w: Int, h: Int) {
         captureSize = Size(w, h)
@@ -79,7 +80,7 @@ abstract class Camera2Fragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
         super.onViewCreated(view, savedInstanceState)
         getSurfaceView().setOnSurfaceCreated { sf ->
             surfaceTexture = sf
-            setSurfaceBufferSize(surfaceTexture)
+            setSurfaceBufferSize(surfaceRatio, surfaceTexture)
             initializeCamera()
         }
 
@@ -119,7 +120,8 @@ abstract class Camera2Fragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
                 request: CaptureRequest,
                 result: TotalCaptureResult
             ) {
-                // 一次请求的捕获完成
+                // 每一次一次请求的捕获完成
+//                Log.d("Camera2", "onCaptureCompleted: ${result.frameNumber}")
             }
         }, cameraHandler)
     }
