@@ -66,6 +66,8 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
     protected abstract var captureSize: Size?
     protected abstract val surfaceRatio: Size
 
+    protected abstract val initialExposureIndex: Int
+
     override fun onDestroy() {
         isStopAnalysis = true
         cameraExecutor.apply {
@@ -127,6 +129,21 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
     }
 
     abstract fun onFocusTap(x: Float, y: Float)
+
+    /**
+     * 设置曝光值
+     */
+    fun setExposure(index: Int) {
+        camera?.apply {
+            val range = cameraInfo.exposureState.exposureCompensationRange
+            Timber.d("exposure size: $range")
+            if (range.contains(index)) {
+                cameraControl.setExposureCompensationIndex(index)
+                val ev = cameraInfo.exposureState.exposureCompensationStep.toFloat() * index
+                Timber.i("EV: $ev")
+            }
+        }
+    }
 
     private fun setupCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(requireContext())
@@ -223,14 +240,14 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
 //                        Timber.d("ImageAnalysis: image width: ${image.width}, height: ${image.height}, rotation: ${image.imageInfo.rotationDegrees}")
                         image.use { bitmapBuffer.copyPixelsFromBuffer(image.planes[0].buffer) }
                         // 拿到的图片是逆时针转了90度的图，这里修正它
-                        val matrix = Matrix()
-                        matrix.postRotate(IMAGE_ROTATE)
-                        val bitmap = Bitmap.createBitmap(bitmapBuffer, 0, 0, bitmapBuffer.width, bitmapBuffer.height, matrix, true)
+//                        val matrix = Matrix()
+//                        matrix.postRotate(IMAGE_ROTATE)
+//                        val bitmap = Bitmap.createBitmap(bitmapBuffer, 0, 0, bitmapBuffer.width, bitmapBuffer.height, matrix, true)
                         // 监听线程关闭的消息
                         if (isStopAnalysis) {
                             return@Analyzer
                         }
-                        onAnalysisImage(bitmap)
+                        onAnalysisImage(bitmapBuffer)
 
                     })
                 }
@@ -249,6 +266,8 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
                 cameraProvider.bindToLifecycle(
                     this, cameraSelector, preview, imageCapture)
             }
+
+            setExposure(initialExposureIndex)
 
             // Attach the viewfinder's surface provider to preview use case
 //            preview?.setSurfaceProvider(binding.viewFinder.surfaceProvider)
