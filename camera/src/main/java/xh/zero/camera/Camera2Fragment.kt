@@ -11,6 +11,7 @@ import android.opengl.GLES20
 import android.opengl.GLES20.GL_MAX_TEXTURE_SIZE
 import android.opengl.GLES20.GL_MAX_VIEWPORT_DIMS
 import android.os.*
+import android.os.Handler.Callback
 import android.util.Log
 import android.util.Size
 import android.view.*
@@ -29,6 +30,7 @@ import xh.zero.camera.utils.StorageUtil
 import xh.zero.camera.widgets.IndicatorRectView
 import java.io.*
 import java.lang.RuntimeException
+import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ArrayBlockingQueue
@@ -47,6 +49,8 @@ abstract class Camera2Fragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
     private lateinit var camera: CameraDevice
     private lateinit var session: CameraCaptureSession
 
+    private val mainHandler = Handler(Looper.getMainLooper())
+
     private val cameraThread = HandlerThread("CameraThread").apply { start() }
     private val cameraHandler = Handler(cameraThread.looper)
     private lateinit var imageReader: ImageReader
@@ -54,19 +58,42 @@ abstract class Camera2Fragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
         cameraManager.getCameraCharacteristics(cameraId)
     }
 
-    private lateinit var surfaceTexture: SurfaceTexture
-
     private val imageReaderThread = HandlerThread("imageReaderThread").apply { start() }
     private val imageReaderHandler = Handler(imageReaderThread.looper)
     private lateinit var relativeOrientation: OrientationLiveData
     private var captureRequestBuilder: CaptureRequest.Builder? = null
     private var cropRect: Rect? = null
 
-    private var captureSize: Size? = null
-    protected abstract val surfaceRatio: Size
+    private var nv21: ByteArray? = null
+    private lateinit var bitmapBuffer: Bitmap
 
-    fun setCaptureSize(w: Int, h: Int) {
-        captureSize = Size(w, h)
+    private val imageListener = ImageReader.OnImageAvailableListener { reader ->
+        val image = reader.acquireNextImage() ?: return@OnImageAvailableListener
+//        Log.d(TAG, "OnImageAvailableListener: ${image.width} x ${image.height}, ${image.format}")
+        val yBuffer: ByteBuffer = image.planes[0].buffer
+        val uBuffer: ByteBuffer = image.planes[1].buffer
+        val vBuffer: ByteBuffer = image.planes[2].buffer
+        val ySize = yBuffer.remaining()
+        val uSize = uBuffer.remaining()
+        val vSize = vBuffer.remaining()
+        if (nv21 == null) {
+            nv21 = ByteArray(ySize + uSize + vSize)
+        }
+        yBuffer.get(nv21!!, 0, ySize)
+        vBuffer.get(nv21!!, ySize, vSize)
+        uBuffer.get(nv21!!, ySize + vSize, uSize)
+//        Log.d(TAG, "data: ${nv21?.size}")
+        if (!::bitmapBuffer.isInitialized) {
+            bitmapBuffer = Bitmap.createBitmap(image.width, image.height, Bitmap.Config.ARGB_8888)
+        }
+//        ImagePreprocessor.yuvToRbga(
+//            width = image.width,
+//            height = image.height,
+//            yuvData = nv21!!,
+//            bitmapBuffer
+//        )
+        onAnalysisImage(bitmapBuffer)
+        image.close()
     }
 
     override fun onDestroy() {
@@ -76,14 +103,12 @@ abstract class Camera2Fragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
         super.onDestroy()
     }
 
+    override fun onSurfaceCreated() {
+        initializeCamera()
+    }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        getSurfaceView().setOnSurfaceCreated { sf ->
-            surfaceTexture = sf
-            setSurfaceBufferSize(surfaceRatio, surfaceTexture)
-            initializeCamera()
-        }
-
         // Used to rotate the output media to match device orientation
         relativeOrientation = OrientationLiveData(requireContext(), characteristics).apply {
             observe(viewLifecycleOwner, Observer { orientation ->
@@ -94,36 +119,25 @@ abstract class Camera2Fragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
 
     private fun initializeCamera() = lifecycleScope.launch(Dispatchers.Main) {
         camera = openCamera(cameraManager, cameraId, cameraHandler)
-        val size = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)!!
-            .getOutputSizes(ImageFormat.JPEG)
-            .maxByOrNull { it.height * it.width }!!
-//        if (cameraWidth == null || cameraHeight == null) {
-//            cameraWidth = size.width
-//            cameraHeight = size.height
-//        }
-        val captureWidth = captureSize?.width ?: size.width
-        val captureHeight = captureSize?.height ?: size.height
-        Timber.d("initializeCamera: $captureSize")
-        imageReader = ImageReader.newInstance(captureWidth, captureHeight, ImageFormat.JPEG, IMAGE_BUFFER_SIZE)
 
-        getSurfaceView().holder.setFixedSize(getSurfaceView().width, getSurfaceView().height)
+//        surfaceView.holder.setFixedSize(surfaceView.width, surfaceView.height)
+
+        onOpened()
+        val captureWidth = captureSize.width
+        val captureHeight = captureSize.height
+        Timber.d("initializeCamera: $captureSize")
+        imageReader = ImageReader.newInstance(captureWidth, captureHeight, ImageFormat.YUV_420_888, IMAGE_BUFFER_SIZE)
+        imageReader.setOnImageAvailableListener(imageListener, imageReaderHandler)
 
         val surface = Surface(surfaceTexture)
         val targets = listOf<Surface>(surface, imageReader.surface)
         session = createCaptureSession(camera, targets, cameraHandler)
         captureRequestBuilder = camera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
             addTarget(surface)
+            // 添加预览回调
+            if (isAnalysis) addTarget(imageReader.surface)
         }
-        session.setRepeatingRequest(captureRequestBuilder!!.build(), object : CameraCaptureSession.CaptureCallback() {
-            override fun onCaptureCompleted(
-                session: CameraCaptureSession,
-                request: CaptureRequest,
-                result: TotalCaptureResult
-            ) {
-                // 每一次一次请求的捕获完成
-//                Log.d("Camera2", "onCaptureCompleted: ${result.frameNumber}")
-            }
-        }, cameraHandler)
+        session.setRepeatingRequest(captureRequestBuilder!!.build(), null, cameraHandler)
     }
 
     @SuppressLint("MissingPermission")
@@ -150,6 +164,9 @@ abstract class Camera2Fragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
                 }
                 val exc = RuntimeException("Camera $cameraId error: ($error) $msg")
                 Timber.e(exc)
+                mainHandler.post {
+                    this@Camera2Fragment.onError(exc.message)
+                }
                 if (cont.isActive) cont.resumeWithException(exc)
             }
         }, handler)
@@ -215,6 +232,32 @@ abstract class Camera2Fragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
             cropW, cropH, activeRect.width() - cropW,
             activeRect.height() - cropH
         )
+    }
+
+    override fun capture(complete: CaptureCallback) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            takePhoto().use { result ->
+                Timber.d("Result received: $result")
+
+                // Save the result to disk
+                val output = saveResult(result)
+                Timber.d("Image saved: ${output.absolutePath}")
+
+                // If the result is a JPEG file, update EXIF metadata with orientation info
+                if (output.extension == "jpg") {
+                    val exif = ExifInterface(output.absolutePath)
+                    exif.setAttribute(
+                        ExifInterface.TAG_ORIENTATION, result.orientation.toString())
+                    exif.saveAttributes()
+                    Timber.d("EXIF metadata saved: ${output.absolutePath}")
+                }
+                Timber.d("回调拍照结果")
+
+                withContext(Dispatchers.Main) {
+                    complete(output.absolutePath)
+                }
+            }
+        }
     }
 
     /**
@@ -352,8 +395,8 @@ abstract class Camera2Fragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
             imageQueue.add(image)
         }, imageReaderHandler)
 
-        val captureRequest = session.device.createCaptureRequest(
-            CameraDevice.TEMPLATE_STILL_CAPTURE).apply { addTarget(imageReader.surface) }
+        val captureRequest = session.device.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE)
+            .apply { addTarget(imageReader.surface) }
         if (cropRect != null) captureRequest.set(CaptureRequest.SCALER_CROP_REGION, cropRect)
         session.capture(captureRequest.build(), object : CameraCaptureSession.CaptureCallback() {
 

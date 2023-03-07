@@ -7,17 +7,15 @@ import android.util.Size
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import timber.log.Timber
+import xh.zero.camera.BaseCameraFragment
 import xh.zero.camera.CameraXFragment
 import xh.zero.camera.widgets.BaseSurfaceView
 import xh.zero.xh_camera.databinding.FragmentCameraXPreviewBinding
 
 class CameraXPreviewFragment : CameraXFragment<FragmentCameraXPreviewBinding>() {
 
-    override var captureSize: Size? = Size(DEFAULT_ANALYZE_IMAGE_WIDTH, DEFAULT_ANALYZE_IMAGE_HEIGHT)
-    override val surfaceRatio: Size = Size(4, 3)
     private var listener: OnFragmentActionListener? = null
-
-    override val cameraId: String by lazy { arguments?.getString("cameraId") ?: "0" }
+    override val initialExposureIndex: Int = 0
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
@@ -50,6 +48,14 @@ class CameraXPreviewFragment : CameraXFragment<FragmentCameraXPreviewBinding>() 
         listener?.showAnalysisResult(bitmap)
     }
 
+    override fun onOpened() {
+
+    }
+
+    override fun onError(e: String?) {
+
+    }
+
     interface OnFragmentActionListener {
         fun showAnalysisResult(result: Bitmap?)
         fun showAnalysisText(txt: String)
@@ -58,7 +64,9 @@ class CameraXPreviewFragment : CameraXFragment<FragmentCameraXPreviewBinding>() 
     companion object {
         fun newInstance(id: String) = CameraXPreviewFragment().apply {
             arguments = Bundle().apply {
-                putString("cameraId", id)
+                putString(ARG_CAMERA_ID, id)
+                putInt(ARG_CAPTURE_SIZE_WIDTH, 1600)
+                putInt(ARG_CAPTURE_SIZE_HEIGHT, 1200)
             }
         }
     }

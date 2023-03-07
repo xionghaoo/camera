@@ -1,5 +1,6 @@
 package xh.zero.xh_camera
 
+import android.graphics.Bitmap
 import android.os.Bundle
 import android.util.Size
 import android.view.LayoutInflater
@@ -9,12 +10,6 @@ import xh.zero.camera.widgets.BaseSurfaceView
 import xh.zero.xh_camera.databinding.FragmentCamera2PreviewBinding
 
 class Camera2PreviewFragment: Camera2Fragment<FragmentCamera2PreviewBinding>() {
-    override val cameraId: String by lazy {
-        arguments?.getString("id") ?: "0"
-    }
-
-    override val surfaceRatio: Size = Size(4, 3)
-
     override fun getBindingView(
         inflater: LayoutInflater,
         container: ViewGroup?
@@ -26,10 +21,22 @@ class Camera2PreviewFragment: Camera2Fragment<FragmentCamera2PreviewBinding>() {
         return binding.viewfinder
     }
 
+    override fun onAnalysisImage(bitmap: Bitmap) {
+
+    }
+
+    override fun onOpened() {
+
+    }
+
+    override fun onError(e: String?) {
+
+    }
+
     companion object {
         fun newInstance(id: String) = Camera2PreviewFragment().apply {
             arguments = Bundle().apply {
-                putString("id", id)
+                putString(ARG_CAMERA_ID, id)
             }
         }
     }

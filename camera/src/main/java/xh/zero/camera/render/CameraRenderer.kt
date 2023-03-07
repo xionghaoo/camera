@@ -39,7 +39,7 @@ class CameraRenderer(
         "uniform mat4 posMatrix;\n" +
         "void main() {\n" +
         "   gl_Position = posMatrix * aPosition;\n" +
-        "   vCoord = (uMatrix * vec4(aCoord, 1.0, 1.0)).xy;" +
+        "   vCoord = (uMatrix * vec4(aCoord, 1.0, 1.0)).xy;\n" +
         "}\n"
 
     /**

@@ -13,9 +13,9 @@ import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatActivity
 import androidx.viewbinding.ViewBinding
 import androidx.window.WindowManager
-import pub.devrel.easypermissions.AfterPermissionGranted
-import pub.devrel.easypermissions.EasyPermissions
 import timber.log.Timber
+
+typealias OnCameraIdSelectCallback = (String) -> Unit
 
 abstract class BaseCameraActivity<V: ViewBinding> : AppCompatActivity() {
 
@@ -30,49 +30,6 @@ abstract class BaseCameraActivity<V: ViewBinding> : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = getBindingView()
         setContentView(binding.root)
-
-        binding.root.viewTreeObserver.addOnGlobalLayoutListener {
-            if (isInit) {
-                isInit = false
-                permissionTask()
-            }
-        }
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        EasyPermissions.onRequestPermissionsResult(requestCode, permissions, grantResults, this)
-    }
-
-    @AfterPermissionGranted(REQUEST_CODE_ALL_PERMISSION)
-    private fun permissionTask() {
-        if (hasPermission()) {
-            initialCameraArea()
-        } else {
-            EasyPermissions.requestPermissions(
-                this,
-                "App需要相关权限，请授予",
-                REQUEST_CODE_ALL_PERMISSION,
-                Manifest.permission.CAMERA,
-                Manifest.permission.RECORD_AUDIO,
-                Manifest.permission.READ_EXTERNAL_STORAGE,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE
-            )
-        }
-    }
-
-    private fun hasPermission() : Boolean {
-        return EasyPermissions.hasPermissions(
-            this,
-            Manifest.permission.CAMERA,
-            Manifest.permission.RECORD_AUDIO,
-            Manifest.permission.READ_EXTERNAL_STORAGE,
-            Manifest.permission.WRITE_EXTERNAL_STORAGE
-        )
     }
 
     abstract fun getBindingView(): V

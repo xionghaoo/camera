@@ -57,16 +57,19 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
     // 照片输出路径
 //    private lateinit var outputDirectory: File
 
-    private lateinit var surfaceTexture: SurfaceTexture
+//    private lateinit var surfaceTexture: SurfaceTexture
 
     private lateinit var bitmapBuffer: Bitmap
     private var imageRotationDegrees: Int = 0
     var isStopAnalysis = false
 
-    protected abstract var captureSize: Size?
-    protected abstract val surfaceRatio: Size
-
     protected abstract val initialExposureIndex: Int
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        cameraExecutor = Executors.newSingleThreadExecutor()
+        surfaceExecutor = Executors.newSingleThreadExecutor()
+    }
 
     override fun onDestroy() {
         isStopAnalysis = true
@@ -84,19 +87,19 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         // Initialize our background executor
-        cameraExecutor = Executors.newSingleThreadExecutor()
-        surfaceExecutor = Executors.newSingleThreadExecutor()
+//        cameraExecutor = Executors.newSingleThreadExecutor()
+//        surfaceExecutor = Executors.newSingleThreadExecutor()
         // Determine the output directory
 //        outputDirectory = getOutputDirectory(requireContext())
 
         windowManager = WindowManager(view.context)
 
-        getSurfaceView().setOnSurfaceCreated { sfTexture ->
-            surfaceTexture = sfTexture
-            setSurfaceBufferSize(surfaceRatio, surfaceTexture)
-            displayId = getSurfaceView().display.displayId
-            setupCamera()
-        }
+//        getSurfaceView().setOnSurfaceCreated { sfTexture ->
+//            surfaceTexture = sfTexture
+//            setSurfaceBufferSize(surfaceRatio, surfaceTexture)
+//            displayId = getSurfaceView().display.displayId
+//            setupCamera()
+//        }
 
         // 手动对焦
         getSurfaceView().setOnGestureDetect(object : GestureDetector.SimpleOnGestureListener() {
@@ -126,6 +129,10 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
                 return true
             }
         })
+    }
+
+    override fun onSurfaceCreated() {
+        setupCamera()
     }
 
     abstract fun onFocusTap(x: Float, y: Float)
@@ -177,7 +184,7 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
         val metrics = windowManager.getCurrentWindowMetrics().bounds
         Timber.d("Screen metrics: ${metrics.width()} x ${metrics.height()}")
 
-        val screenAspectRatio = aspectRatio(getSurfaceView().width, getSurfaceView().height)
+        val screenAspectRatio = aspectRatio(aspectRatio.width, aspectRatio.height)
         Timber.d("Preview aspect ratio: $screenAspectRatio")
 
         val rotation = getSurfaceView().display.rotation
@@ -218,7 +225,7 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
             .setJpegQuality(100)
             .build()
 
-        if (captureSize != null) {
+        if (isAnalysis) {
             // ImageAnalysis 用例
             imageAnalyzer = ImageAnalysis.Builder()
                 // We request aspect ratio but no resolution
@@ -226,7 +233,7 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
                 .setTargetRotation(rotation)
                 // 大分辨率
 //            .setTargetResolution(Size(960, 1280))
-                .setTargetResolution(captureSize!!)
+                .setTargetResolution(captureSize)
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                 .build()
@@ -259,7 +266,7 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
         try {
             // A variable number of use-cases can be passed here -
             // camera provides access to CameraControl & CameraInfo
-            camera = if (captureSize != null) {
+            camera = if (isAnalysis) {
                 cameraProvider.bindToLifecycle(
                     this, cameraSelector, preview, imageCapture, imageAnalyzer)
             } else {
@@ -286,9 +293,6 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
         }
     }
 
-    @WorkerThread
-    abstract fun onAnalysisImage(bitmap: Bitmap)
-
     private fun aspectRatio(width: Int, height: Int): Int {
         val previewRatio = max(width, height).toDouble() / min(width, height)
         if (abs(previewRatio - RATIO_4_3_VALUE) <= abs(previewRatio - RATIO_16_9_VALUE)) {
@@ -299,99 +303,43 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
 
     private fun observeCameraState(cameraInfo: CameraInfo) {
         cameraInfo.cameraState.observe(viewLifecycleOwner) { cameraState ->
-            run {
-                when (cameraState.type) {
-                    CameraState.Type.PENDING_OPEN -> {
-                        // Ask the user to close other camera apps
-                        Toast.makeText(context,
-                            "CameraState: Pending Open",
-                            Toast.LENGTH_SHORT).show()
-                    }
-                    CameraState.Type.OPENING -> {
-                        // Show the Camera UI
-                        Toast.makeText(context,
-                            "CameraState: Opening",
-                            Toast.LENGTH_SHORT).show()
-                    }
-                    CameraState.Type.OPEN -> {
-                        // Setup Camera resources and begin processing
-                        Toast.makeText(context,
-                            "CameraState: Open",
-                            Toast.LENGTH_SHORT).show()
-                    }
-                    CameraState.Type.CLOSING -> {
-                        // Close camera UI
-                        Toast.makeText(context,
-                            "CameraState: Closing",
-                            Toast.LENGTH_SHORT).show()
-                    }
-                    CameraState.Type.CLOSED -> {
-                        // Free camera resources
-                        Toast.makeText(context,
-                            "CameraState: Closed",
-                            Toast.LENGTH_SHORT).show()
-                    }
+            // 相机状态监听
+            val msg = when (cameraState.type) {
+                CameraState.Type.PENDING_OPEN -> "CameraState: Pending Open"
+                CameraState.Type.OPENING -> "CameraState: Opening"
+                CameraState.Type.OPEN -> {
+                    // Setup Camera resources and begin processing
+                    onOpened()
+                    "CameraState: Open"
                 }
+                CameraState.Type.CLOSING -> "CameraState: Closing"
+                CameraState.Type.CLOSED -> "CameraState: Closed"
             }
 
+            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+
+            // 相机错误处理
             cameraState.error?.let { error ->
-                when (error.code) {
+                val errMsg: String? = when (error.code) {
                     // Open errors
-                    CameraState.ERROR_STREAM_CONFIG -> {
-                        // Make sure to setup the use cases properly
-                        Toast.makeText(context,
-                            "Stream config error",
-                            Toast.LENGTH_SHORT).show()
-                    }
+                    CameraState.ERROR_STREAM_CONFIG -> "Stream config error"
                     // Opening errors
-                    CameraState.ERROR_CAMERA_IN_USE -> {
-                        // Close the camera or ask user to close another camera app that's using the
-                        // camera
-                        Toast.makeText(context,
-                            "Camera in use",
-                            Toast.LENGTH_SHORT).show()
-                    }
-                    CameraState.ERROR_MAX_CAMERAS_IN_USE -> {
-                        // Close another open camera in the app, or ask the user to close another
-                        // camera app that's using the camera
-                        Toast.makeText(context,
-                            "Max cameras in use",
-                            Toast.LENGTH_SHORT).show()
-                    }
-                    CameraState.ERROR_OTHER_RECOVERABLE_ERROR -> {
-                        Toast.makeText(context,
-                            "Other recoverable error",
-                            Toast.LENGTH_SHORT).show()
-                    }
+                    CameraState.ERROR_CAMERA_IN_USE -> "Camera in use"
+                    CameraState.ERROR_MAX_CAMERAS_IN_USE -> "Max cameras in use"
+                    CameraState.ERROR_OTHER_RECOVERABLE_ERROR -> "Other recoverable error"
                     // Closing errors
-                    CameraState.ERROR_CAMERA_DISABLED -> {
-                        // Ask the user to enable the device's cameras
-                        Toast.makeText(context,
-                            "Camera disabled",
-                            Toast.LENGTH_SHORT).show()
-                    }
-                    CameraState.ERROR_CAMERA_FATAL_ERROR -> {
-                        // Ask the user to reboot the device to restore camera function
-                        Toast.makeText(context,
-                            "Fatal error",
-                            Toast.LENGTH_SHORT).show()
-                    }
+                    CameraState.ERROR_CAMERA_DISABLED -> "Camera disabled"
+                    CameraState.ERROR_CAMERA_FATAL_ERROR -> "Fatal error"
                     // Closed errors
-                    CameraState.ERROR_DO_NOT_DISTURB_MODE_ENABLED -> {
-                        // Ask the user to disable the "Do Not Disturb" mode, then reopen the camera
-                        Toast.makeText(context,
-                            "Do not disturb mode enabled",
-                            Toast.LENGTH_SHORT).show()
-                    }
+                    CameraState.ERROR_DO_NOT_DISTURB_MODE_ENABLED -> "Do not disturb mode enabled"
+                    else -> null
                 }
+                onError(errMsg)
             }
         }
     }
 
-    /**
-     * 拍照
-     */
-    fun takePhoto(complete: (path: String?) -> Unit) {
+    override fun capture(callback: CaptureCallback) {
 
         // Get a stable reference of the modifiable image capture use case
         imageCapture?.let { imageCapture ->
@@ -421,7 +369,7 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
                     override fun onImageSaved(output: ImageCapture.OutputFileResults) {
                         val savedUri = output.savedUri ?: Uri.fromFile(photoFile)
                         requireActivity().runOnUiThread {
-                            complete(savedUri.path)
+                            callback(savedUri.path)
                         }
                         Timber.d("Photo capture succeeded: ${savedUri.path}")
 
@@ -473,22 +421,5 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
         private const val RATIO_16_9_VALUE = 16.0 / 9.0
 
         private const val IMAGE_ROTATE = 90f
-
-        /** Helper function used to create a timestamped file */
-//        private fun createFile(baseFolder: File, format: String, extension: String) =
-//            File(
-//                baseFolder,
-//                SimpleDateFormat(format, Locale.US).format(System.currentTimeMillis()) + extension
-//            )
-
-        /** Use external media if it is available, our app's file directory otherwise */
-//        fun getOutputDirectory(context: Context): File {
-//            return StorageUtil.getDownloadDirectory(context.applicationContext, "xh_camera")
-//        }
-
-//        private fun hasExternalStoragePermission(context: Context): Boolean {
-//            val perm = context.checkCallingOrSelfPermission("android.permission.WRITE_EXTERNAL_STORAGE")
-//            return perm == PackageManager.PERMISSION_GRANTED
-//        }
     }
 }
