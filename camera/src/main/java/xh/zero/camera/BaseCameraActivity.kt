@@ -8,11 +8,18 @@ import android.graphics.Rect
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.os.Bundle
+import android.util.Log
 import android.util.Size
 import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.viewbinding.ViewBinding
-import androidx.window.WindowManager
+import androidx.window.WindowProperties
+import androidx.window.layout.WindowInfoTracker
+import androidx.window.layout.WindowMetricsCalculator
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import timber.log.Timber
 
 typealias OnCameraIdSelectCallback = (String) -> Unit
@@ -20,16 +27,22 @@ typealias OnCameraIdSelectCallback = (String) -> Unit
 abstract class BaseCameraActivity<V: ViewBinding> : AppCompatActivity() {
 
     companion object {
-        private const val REQUEST_CODE_ALL_PERMISSION = 1
+        private const val TAG = "BaseCameraActivity"
     }
 
     protected lateinit var binding: V
     private var isInit = true
+    private lateinit var windowBounds: Rect
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = getBindingView()
         setContentView(binding.root)
+        windowBounds = WindowMetricsCalculator.getOrCreate().computeCurrentWindowMetrics(this).bounds
+
+        Log.d(TAG, "window bounds: $windowBounds")
+
+
     }
 
     abstract fun getBindingView(): V
@@ -61,6 +74,7 @@ abstract class BaseCameraActivity<V: ViewBinding> : AppCompatActivity() {
 
     private fun initialCameraPreviewSize(cameraId: String, cameraManager: CameraManager) {
         val characteristic = cameraManager.getCameraCharacteristics(cameraId)
+
         // 打开第一个摄像头
         val configurationMap = characteristic.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
         configurationMap?.getOutputSizes(ImageFormat.JPEG)
@@ -68,7 +82,8 @@ abstract class BaseCameraActivity<V: ViewBinding> : AppCompatActivity() {
             ?.also { maxImageSize ->
                 // Nexus6P相机支持的最大尺寸：4032x3024
                 Timber.d("相机支持的最大尺寸：${maxImageSize}")
-                val metrics = getPreviewRect() ?: WindowManager(this).getCurrentWindowMetrics().bounds
+
+                val metrics = getPreviewRect() ?: windowBounds
                 // Nexus6P屏幕尺寸：1440 x 2560，包含NavigationBar的高度
                 Timber.d("屏幕尺寸：${metrics.width()} x ${metrics.height()}")
                 val layout =  getCameraFragmentLayout()

@@ -65,8 +65,9 @@ class CameraXPreviewFragment : CameraXFragment<FragmentCameraXPreviewBinding>() 
         fun newInstance(id: String) = CameraXPreviewFragment().apply {
             arguments = Bundle().apply {
                 putString(ARG_CAMERA_ID, id)
-                putInt(ARG_CAPTURE_SIZE_WIDTH, 1600)
-                putInt(ARG_CAPTURE_SIZE_HEIGHT, 1200)
+                putInt(ARG_CAPTURE_SIZE_WIDTH, 1200)
+                putInt(ARG_CAPTURE_SIZE_HEIGHT, 1600)
+                putBoolean(ARG_IS_ANALYSIS, true)
             }
         }
     }

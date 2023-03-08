@@ -23,7 +23,6 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import androidx.core.net.toFile
 import androidx.viewbinding.ViewBinding
-import androidx.window.WindowManager
 import timber.log.Timber
 import xh.zero.camera.utils.StorageUtil
 import java.io.File
@@ -44,7 +43,7 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
     private var displayId: Int = -1
     private var cameraProvider: ProcessCameraProvider? = null
 //    private var lensFacing: Int = CameraSelector.LENS_FACING_BACK
-    private lateinit var windowManager: WindowManager
+//    private lateinit var windowManager: WindowManager
     private var camera: Camera? = null
 
     private var preview: Preview? = null
@@ -60,6 +59,7 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
 //    private lateinit var surfaceTexture: SurfaceTexture
 
     private lateinit var bitmapBuffer: Bitmap
+    private var rotateBitmap: Bitmap? = null
     private var imageRotationDegrees: Int = 0
     var isStopAnalysis = false
 
@@ -92,7 +92,7 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
         // Determine the output directory
 //        outputDirectory = getOutputDirectory(requireContext())
 
-        windowManager = WindowManager(view.context)
+//        windowManager = WindowManager(view.context)
 
 //        getSurfaceView().setOnSurfaceCreated { sfTexture ->
 //            surfaceTexture = sfTexture
@@ -161,6 +161,7 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
 //                hasFrontCamera() -> CameraSelector.LENS_FACING_FRONT
 //                else -> throw IllegalStateException("Back and front camera are unavailable")
 //            }
+            getSurfaceView().holder.setFixedSize(getSurfaceView().width, getSurfaceView().height)
             bindCameraUseCases()
         }, ContextCompat.getMainExecutor(requireContext()))
     }
@@ -181,8 +182,9 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
     @SuppressLint("UnsafeOptInUsageError")
     private fun bindCameraUseCases() {
         // Get screen metrics used to setup camera for full screen resolution
-        val metrics = windowManager.getCurrentWindowMetrics().bounds
-        Timber.d("Screen metrics: ${metrics.width()} x ${metrics.height()}")
+//        val metrics = windowManager.getCurrentWindowMetrics().bounds
+//        Timber.d("Screen metrics: ${metrics.width()} x ${metrics.height()}")
+//        windowManager.maximumWindowMetrics.bounds
 
         val screenAspectRatio = aspectRatio(aspectRatio.width, aspectRatio.height)
         Timber.d("Preview aspect ratio: $screenAspectRatio")
@@ -244,17 +246,17 @@ abstract class CameraXFragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
                             imageRotationDegrees = image.imageInfo.rotationDegrees
                             bitmapBuffer = Bitmap.createBitmap(image.width, image.height, Bitmap.Config.ARGB_8888)
                         }
-//                        Timber.d("ImageAnalysis: image width: ${image.width}, height: ${image.height}, rotation: ${image.imageInfo.rotationDegrees}")
+                        Timber.d("ImageAnalysis: capture: ($captureSize) image ${image.width} x ${image.height}, rotation: ${image.imageInfo.rotationDegrees}")
                         image.use { bitmapBuffer.copyPixelsFromBuffer(image.planes[0].buffer) }
                         // 拿到的图片是逆时针转了90度的图，这里修正它
-//                        val matrix = Matrix()
-//                        matrix.postRotate(IMAGE_ROTATE)
-//                        val bitmap = Bitmap.createBitmap(bitmapBuffer, 0, 0, bitmapBuffer.width, bitmapBuffer.height, matrix, true)
+                        val matrix = Matrix()
+                        matrix.postRotate(imageRotationDegrees.toFloat())
+                        rotateBitmap = Bitmap.createBitmap(bitmapBuffer, 0, 0, bitmapBuffer.width, bitmapBuffer.height, matrix, true)
                         // 监听线程关闭的消息
                         if (isStopAnalysis) {
                             return@Analyzer
                         }
-                        onAnalysisImage(bitmapBuffer)
+                        onAnalysisImage(rotateBitmap!!)
 
                     })
                 }

@@ -120,7 +120,7 @@ abstract class Camera2Fragment<VIEW: ViewBinding> : BaseCameraFragment<VIEW>() {
     private fun initializeCamera() = lifecycleScope.launch(Dispatchers.Main) {
         camera = openCamera(cameraManager, cameraId, cameraHandler)
 
-//        surfaceView.holder.setFixedSize(surfaceView.width, surfaceView.height)
+        getSurfaceView().holder.setFixedSize(getSurfaceView().width, getSurfaceView().height)
 
         onOpened()
         val captureWidth = captureSize.width

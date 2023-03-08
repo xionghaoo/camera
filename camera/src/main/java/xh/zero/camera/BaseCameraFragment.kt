@@ -3,6 +3,7 @@ package xh.zero.camera
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.ImageFormat
+import android.graphics.Rect
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
@@ -18,6 +19,8 @@ import androidx.annotation.MainThread
 import androidx.annotation.WorkerThread
 import androidx.fragment.app.Fragment
 import androidx.viewbinding.ViewBinding
+import androidx.window.layout.WindowMetricsCalculator
+import xh.zero.camera.utils.CameraUtil
 import xh.zero.camera.utils.StorageUtil
 import xh.zero.camera.widgets.BaseSurfaceView
 import java.io.File
@@ -60,7 +63,7 @@ abstract class BaseCameraFragment<V: ViewBinding> : Fragment() {
                 Size(captureSize.width, captureSize.height)
             }
         } else {
-            val r = captureSize.height.toFloat() / captureSize.width
+            val r = captureSize.width.toFloat() / captureSize.height
             if (abs(r - 3f / 4) < 0.01) {
                 Size(3, 4)
             } else if (abs(r - 9f / 16) < 0.01) {
@@ -75,16 +78,20 @@ abstract class BaseCameraFragment<V: ViewBinding> : Fragment() {
         requireActivity().getSystemService(Context.CAMERA_SERVICE) as CameraManager
     }
 
+    private lateinit var windowBounds: Rect
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        windowBounds = WindowMetricsCalculator.getOrCreate().computeCurrentWindowMetrics(requireContext()).bounds
         val width = arguments?.getInt(ARG_CAPTURE_SIZE_WIDTH)
         val height = arguments?.getInt(ARG_CAPTURE_SIZE_HEIGHT)
         captureSize = if (width == null || height == null) {
-            Log.d(TAG, "use default capture size: $DEFAULT_ANALYZE_IMAGE_WIDTH x $DEFAULT_ANALYZE_IMAGE_HEIGHT")
+            Log.i(TAG, "use default capture size: $DEFAULT_ANALYZE_IMAGE_WIDTH x $DEFAULT_ANALYZE_IMAGE_HEIGHT")
             Size(DEFAULT_ANALYZE_IMAGE_WIDTH, DEFAULT_ANALYZE_IMAGE_HEIGHT)
         } else {
             Size(width, height)
         }
+        checkCaptureSize()
     }
 
     override fun onCreateView(
@@ -138,6 +145,23 @@ abstract class BaseCameraFragment<V: ViewBinding> : Fragment() {
      */
     abstract fun capture(complete: CaptureCallback)
 
+    private fun checkCaptureSize() {
+        val sizeCheck = cameraManager.getCameraCharacteristics(cameraId)
+            .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+            ?.getOutputSizes(ImageFormat.JPEG)
+            ?.filter { size ->
+                Log.d(TAG, "output size: $size")
+                if (captureSize.width > captureSize.height) {
+                    size.width == captureSize.width && size.height == captureSize.height
+                } else {
+                    size.width == captureSize.height && size.height == captureSize.width
+                }
+            }
+        if (sizeCheck?.isEmpty() == true) {
+            Log.e(TAG, "not match size: ($captureSize)")
+        }
+    }
+
     fun setCaptureSize(w: Int, h: Int) {
         captureSize = Size(w, h)
     }
@@ -149,6 +173,10 @@ abstract class BaseCameraFragment<V: ViewBinding> : Fragment() {
      * 如果我们Surface buffer size的尺寸和SurfaceView的尺寸不一致，那么输出的图像也会变形
      */
     private fun setSurfaceBufferSize(surfaceTexture: SurfaceTexture) {
+        Log.d(TAG, "aspectRatio: $aspectRatio")
+        val screenW = windowBounds.width()
+        val screenH = windowBounds.height()
+        Log.d(TAG, "screen size: $screenW x $screenH")
         val characteristic = cameraManager.getCameraCharacteristics(cameraId)
         val configurationMap = characteristic.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
         configurationMap?.getOutputSizes(ImageFormat.JPEG)
@@ -157,21 +185,23 @@ abstract class BaseCameraFragment<V: ViewBinding> : Fragment() {
                 val limit = min(GLES20.GL_MAX_VIEWPORT_DIMS, GLES20.GL_MAX_TEXTURE_SIZE)
                 val isFitGLSize = size.width <= limit && size.height <= limit
                 // 不大于屏幕尺寸
-                val screenW = requireContext().resources.displayMetrics.widthPixels
-                val screenH = requireContext().resources.displayMetrics.heightPixels
-                val screenMinSize = if (screenW < screenH) screenW else screenH
-                val sizeMin = if (size.width < size.height) size.width else size.height
-                val isFitScreenSize = sizeMin <= screenMinSize
-                isFitGLSize && isFitScreenSize
+//                val screenMinSize = if (screenW < screenH) screenW else screenH
+//                val sizeMin = if (size.width < size.height) size.width else size.height
+//                val isFitScreenSize = sizeMin <= screenMinSize
+                isFitGLSize /*&& isFitScreenSize*/
             }
             ?.filter { size ->
                 // 寻找4:3的预览尺寸比例
-                abs(size.width.toFloat() / aspectRatio.width - size.height.toFloat() / aspectRatio.height) < 0.01f
+                if (aspectRatio.width > aspectRatio.height) {
+                    abs(size.width.toFloat() / aspectRatio.width - size.height.toFloat() / aspectRatio.height) < 0.01f
+                } else {
+                    abs(size.width.toFloat() / aspectRatio.height - size.height.toFloat() / aspectRatio.width) < 0.01f
+                }
             }
             ?.maxByOrNull { size -> size.height * size.width }
             ?.also { maxBufferSize ->
                 surfaceTexture.setDefaultBufferSize(maxBufferSize.width, maxBufferSize.height)
-                Log.d(TAG, "设置纹理缓冲区尺寸：${maxBufferSize}")
+                Log.d(TAG, "surface buffer size：${maxBufferSize}")
             }
     }
 

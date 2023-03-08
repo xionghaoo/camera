@@ -7,30 +7,41 @@ import android.graphics.Rect
 import android.graphics.RectF
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
+import android.util.Log
 import android.util.Size
 import android.view.ViewGroup
-import androidx.window.WindowManager
+import androidx.window.layout.WindowMetricsCalculator
 import timber.log.Timber
+import xh.zero.camera.BaseCameraActivity
 
 class CameraUtil {
     companion object {
 
+        private const val TAG = "CameraUtil"
+
+        fun selectCamera(context: Context, index: Int): String {
+            val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+            return if (cameraManager.cameraIdList.size >= index) {
+                cameraManager.cameraIdList[index]
+            } else throw IllegalStateException("camera id list size ${cameraManager.cameraIdList.size} < $index")
+        }
+
         fun adjustCameraArea(
             context: Context,
             cameraLayout: ViewGroup,
-            cameraIndex: Int,
+            cameraId: String,
             cameraSize: Size? = null,
-            callback: (cameraId: String) -> Unit
+            callback: (previewSize: Size) -> Unit
         ) {
             cameraLayout.post {
+//                val metrics = windowManager.getCurrentWindowMetrics().bounds
+                val windowBounds = WindowMetricsCalculator.getOrCreate().computeCurrentWindowMetrics(context).bounds
+                Log.d(TAG, "window bounds: $windowBounds")
+
                 val originWidth = cameraLayout.width
                 val originHeight = cameraLayout.height
                 val resources = context.resources
                 val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
-                val cameraId = if (cameraManager.cameraIdList.size >= cameraIndex) {
-                    cameraManager.cameraIdList[cameraIndex]
-                } else throw IllegalStateException("camera id list size ${cameraManager.cameraIdList.size} < $cameraIndex")
-
                 val characteristic = cameraManager.getCameraCharacteristics(cameraId)
                 val configurationMap = characteristic.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
                 configurationMap?.getOutputSizes(ImageFormat.JPEG)
@@ -41,7 +52,6 @@ class CameraUtil {
 //                    val metrics = getPreviewRect() ?: WindowManager(context).getCurrentWindowMetrics().bounds
                         // Nexus6P屏幕尺寸：1440 x 2560，包含NavigationBar的高度
                         Timber.d("preview origin size：${originWidth} x $originHeight")
-                        var previewAreaSize = Size(0, 0)
                         val lp = cameraLayout.layoutParams as ViewGroup.LayoutParams
 
                         Timber.d("屏幕方向: ${if (resources.configuration.orientation == 1) "竖直" else "水平"}")
@@ -62,8 +72,7 @@ class CameraUtil {
                             lp.width = (originHeight / ratio).toInt()
                             lp.height = originHeight
                         }
-                        previewAreaSize = Size(lp.width, lp.height)
-                        callback(cameraId)
+                        callback(Size(lp.width, lp.height))
                     }
             }
         }
